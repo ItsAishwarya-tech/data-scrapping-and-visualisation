@@ -234,6 +234,40 @@ st.dataframe(df, use_container_width=True)
 # Optional: Plot as bar chart
 st.bar_chart(df.set_index('Genre')['average_votes'])
 
+import streamlit as st
+import pandas as pd
+import sqlite3
+import matplotlib.pyplot as plt
+import seaborn as sns
+st.title("🎞️ Movie Rating Distribution")
+
+# Connect to DB
+conn = sqlite3.connect('films.db')
+
+# Query
+query = "SELECT Rating FROM film WHERE Rating IS NOT NULL;"
+df = pd.read_sql_query(query, conn)
+conn.close()
+
+# Show basic stats
+st.write("Rating Summary Statistics:")
+st.write(df['Rating'].describe())
+
+# Plot histogram and boxplot side-by-side
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+# Histogram
+ax1.hist(df['Rating'], bins=20, color='skyblue', edgecolor='black')
+ax1.set_title('Histogram of Ratings')
+ax1.set_xlabel('Rating')
+ax1.set_ylabel('Count')
+
+# Boxplot
+sns.boxplot(x=df['Rating'], ax=ax2, color='lightgreen')
+ax2.set_title('Boxplot of Ratings')
+
+# Display plot in Streamlit
+st.pyplot(fig)
 
 
 
@@ -241,173 +275,163 @@ st.bar_chart(df.set_index('Genre')['average_votes'])
 import streamlit as st
 import pandas as pd
 import sqlite3
-from matplotlib import pyplot as plt
-# Streamlit Title
-st.title(" Dominant IMDb 2024 Genres by Movie Count (Matplotlib)")
-# Connect to database
+st.title("🎬 Top-Rated Movie by Genre")
+
 conn = sqlite3.connect('films.db')
-# SQL Query to get dominant genres
+
 query = """
-SELECT Genre, COUNT(*) AS MovieCount
-FROM film
-GROUP BY Genre
-ORDER BY MovieCount DESC
+SELECT f.Genre, f.MovieName, f.Rating AS Top_Rating
+FROM film f
+JOIN (
+    SELECT Genre, MAX(Rating) AS MaxRating
+    FROM film
+    GROUP BY Genre
+) sub ON f.Genre = sub.Genre AND f.Rating = sub.MaxRating
+ORDER BY Top_Rating DESC;
 """
-# Run query
+
 df = pd.read_sql_query(query, conn)
 conn.close()
-# Display data
-st.dataframe(df)
-# Plot using matplotlib
-fig, ax = plt.subplots(figsize=(10,6))
-ax.bar(df['Genre'], df['MovieCount'], color='skyblue')
-ax.set_title('Most Frequent Movie Genres in 2024')
-ax.set_xlabel('Genre')
-ax.set_ylabel('Number of Movies')
-plt.xticks(rotation=45)
-st.pyplot(fig)
 
-
-
+st.dataframe(df, use_container_width=True)
 
 
 import streamlit as st
 import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
-st.title("Distribution of Movie Ratings")
-conn = sqlite3.connect('films.db')
-query = "SELECT Rating FROM film"
-df = pd.read_sql_query(query, conn)
-conn.close()
-fig, ax = plt.subplots()
-ax.hist(df['Rating'], bins=10, color='skyblue', edgecolor='black')
-ax.set_xlabel('Rating')
-ax.set_ylabel('Number of Movies')
-ax.set_title('Distribution of Movie Ratings')
-st.pyplot(fig)
 
+# Title
+st.title("🥧 Most Popular Genres by Voting")
 
-
-
-
-import streamlit as st
-import pandas as pd
-import sqlite3
-import matplotlib.pyplot as plt
-st.title("Average Ratings by Genre")
-conn = sqlite3.connect('films.db')
-query = """
-SELECT Genre, AVG(Rating) AS AvgRating
-FROM film
-GROUP BY Genre
-ORDER BY AvgRating DESC
-"""
-df = pd.read_sql_query(query, conn)
-conn.close()
-fig, ax = plt.subplots()
-ax.bar(df['Genre'], df['AvgRating'], color='orange', edgecolor='black')
-ax.set_xlabel('Genre')
-ax.set_ylabel('Average Rating')
-ax.set_title('Average Ratings by Genre')
-plt.xticks(rotation=45)
-st.pyplot(fig)
-
-
-
-
-import streamlit as st
-import pandas as pd
-import sqlite3
-st.title("Shortest and Longest Movies in 2024")
-conn = sqlite3.connect('films.db')
-# Shortest movie query excluding Duration = 0
-query_shortest = """
-SELECT MovieName, Duration
-FROM film
-WHERE Duration = (SELECT MIN(Duration) FROM film WHERE Duration > 0)
-"""
-#Longest movie query
-query_longest = """
-SELECT MovieName, Duration
-FROM film
-WHERE Duration = (SELECT MAX(Duration) FROM film)
-"""
-df_shortest = pd.read_sql_query(query_shortest, conn)
-df_longest = pd.read_sql_query(query_longest, conn)
-conn.close()
-st.subheader("🎬 Shortest Movie(s)")
-st.dataframe(df_shortest)
-st.subheader("🎬 Longest Movie(s)")
-st.dataframe(df_longest)
-
-
-
-
-
-import streamlit as st
-import sqlite3
-import pandas as pd
-from matplotlib import pyplot as plt
-st.title("Top 10 Movies with Highest Voting Counts")
 # Connect to the database
 conn = sqlite3.connect('films.db')
-# SQL query to get top 10 movies by Votes
+
+# Query to get total votes per genre
 query = """
-SELECT MovieName, Votes
+SELECT Genre, SUM(Votes) AS Total_Votes
 FROM film
-ORDER BY Votes DESC
-LIMIT 10
+GROUP BY Genre
+ORDER BY Total_Votes DESC;
 """
-# Execute query and load into DataFrame
-df_top10 = pd.read_sql_query(query, conn)
+
+df = pd.read_sql_query(query, conn)
 conn.close()
-# Display in Streamlit
-st.dataframe(df_top10)
 
+# Display raw data
+st.dataframe(df, use_container_width=True)
 
+# Plot pie chart
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.pie(df['Total_Votes'], labels=df['Genre'], autopct='%1.1f%%', startangle=140)
+ax.set_title("Voting Distribution by Genre")
+ax.axis('equal')  # Ensures pie is a circle
 
-
-
+# Show in Streamlit
+st.pyplot(fig)
 
 
 
 import streamlit as st
-import sqlite3
 import pandas as pd
-from matplotlib import pyplot as plt
-st.title("📊 Ratings vs. Votes Scatter Plot (Matplotlib)")
+import sqlite3
+
+st.title("⏱️ Duration Extremes: Shortest & Longest Movies")
+
 # Connect to database
 conn = sqlite3.connect('films.db')
-# SQL: Filter out rows where Rating, Votes, or Duration are zero or null
+
+# Query
 query = """
-SELECT MovieName, Genre, Rating, Votes, Duration
+SELECT MovieName, Genre, Duration, Rating
 FROM film
-WHERE 
-    CAST(Rating AS REAL) > 0 AND 
-    CAST(Votes AS INTEGER) > 0 AND 
-    CAST(Duration AS INTEGER) > 0
+WHERE Duration = (SELECT MIN(Duration) FROM film)
+   OR Duration = (SELECT MAX(Duration) FROM film);
 """
 df = pd.read_sql_query(query, conn)
 conn.close()
-# Convert to numeric (string to numbers safely)
-df['Rating'] = pd.to_numeric(df['Rating'], errors='coerce')
-df['Votes'] = pd.to_numeric(df['Votes'], errors='coerce')
-df['Duration'] = pd.to_numeric(df['Duration'], errors='coerce')
-# Filter: Keep rows where Rating, Votes, Duration > 0 (but no column drop)
-filtered_df = df[(df['Rating'] > 0) & (df['Votes'] > 0) & (df['Duration'] > 0)]
-# Scatter plot with Matplotlib
-if not filtered_df.empty:
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.scatter(filtered_df['Votes'], filtered_df['Rating'], alpha=0.7)
-    ax.set_xlabel('Votes')
-    ax.set_ylabel('Rating')
-    ax.set_title('Ratings vs. Votes')
-    ax.grid(True)
 
-    st.pyplot(fig)
-else:
-    st.info("No movies available after filtering.")
+# Show table
+st.dataframe(df, use_container_width=True)
+
+
+
+import streamlit as st
+import pandas as pd
+import sqlite3
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Title
+st.title("🔥 Average Ratings by Genre (Heatmap)")
+
+# Connect to the database
+conn = sqlite3.connect('films.db')
+
+# Query
+query = """
+SELECT Genre, ROUND(AVG(Rating), 2) AS Avg_Rating
+FROM film
+GROUP BY Genre
+ORDER BY Avg_Rating DESC;
+"""
+
+df = pd.read_sql_query(query, conn)
+conn.close()
+
+# Display table
+st.dataframe(df, use_container_width=True)
+
+# Prepare data for heatmap
+heatmap_data = df.set_index('Genre').T  # Transpose to put genres as columns
+
+# Create heatmap
+fig, ax = plt.subplots(figsize=(10, 2))
+sns.heatmap(heatmap_data, annot=True, cmap='YlGnBu', fmt=".2f", ax=ax)
+ax.set_title("Average Ratings by Genre")
+
+# Show in Streamlit
+st.pyplot(fig)
+
+
+
+import streamlit as st
+import pandas as pd
+import sqlite3
+import matplotlib.pyplot as plt
+
+# Title
+st.title("📈 Correlation Analysis: Rating vs Voting Counts")
+
+# Connect to database
+conn = sqlite3.connect('films.db')
+
+# Query
+query = """
+SELECT Rating, Votes
+FROM film
+WHERE Votes > 0;
+"""
+
+df = pd.read_sql_query(query, conn)
+conn.close()
+
+# Show data (optional)
+st.dataframe(df.head(), use_container_width=True)
+
+# Scatter Plot
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter(df['Votes'], df['Rating'], alpha=0.6, color='purple')
+ax.set_xlabel("Votes")
+ax.set_ylabel("Rating")
+ax.set_title("Ratings vs Votes Scatter Plot")
+ax.grid(True)
+
+# Show in Streamlit
+st.pyplot(fig)
+
+
+
     
     
     
